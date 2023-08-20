@@ -1,46 +1,135 @@
 package com.example.cameraxandjetpackcompose
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraSelector.LENS_FACING_BACK
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.cameraxandjetpackcompose.ui.theme.CameraXandJetpackComposeTheme
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.concurrent.futures.await
+import java.io.File
+import java.util.Calendar
+import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CameraXandJetpackComposeTheme {
-                // A surface container using the 'background' color from the theme
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Greeting("Android")
+            val preview = androidx.camera.core.Preview.Builder().build()
+            val imageCapture = ImageCapture.Builder()
+                .build()
+
+
+        }
+    }
+    @Composable
+    fun CameraView(imageCapture: ImageCapture, preview: androidx.camera.core.Preview) {
+        val context = LocalContext.current
+        val lifecycle = LocalLifecycleOwner.current
+
+        val previewView = remember {
+            PreviewView(context)
+        }
+        var uri by remember {
+            mutableStateOf<Uri?>(null)
+        }
+
+        var lensFacing by rememberSaveable {
+            mutableStateOf(CameraSelector.LENS_FACING_BACK)
+        }
+
+        val outputDir = File(context.getExternalFilesDir(null)?.path)
+
+
+        //Init camera
+        LaunchedEffect(key1 = lensFacing) {
+            val cameraProvider = ProcessCameraProvider.getInstance(context).await()
+            val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+
+            val useCaseGroup = UseCaseGroup.Builder()
+                .addUseCase(imageCapture)
+                .addUseCase(preview)
+                .apply { previewView.viewPort?.let { setViewPort(it) } }
+                .build()
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(lifecycle, cameraSelector, useCaseGroup)
+
+            preview.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
+        Box(
+            modifier = Modifier
+            .fillMaxSize(),
+            contentAlignment = Alignment.Center) {
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            Column{
+                Button(onClick = {
+                    takePhoto(
+                        imageCapture = imageCapture,
+                        outputDir = outputDir,
+                    onImageCaptured = {
+
+                    },
+                    onError = {}
+                    )
+                }) {
+                    Text(text = "Take photo")
+                }
+                Button(onClick = { val lens =
+                    if(lensFacing == CameraSelector.LENS_FACING_FRONT) LENS_FACING_BACK
+                    else CameraSelector.LENS_FACING_FRONT
+                    lensFacing = lens
+                }) {
+                    Text(text = "Change lens facing")
                 }
             }
         }
+
+    }
+
+    fun takePhoto(
+        imageCapture: ImageCapture,
+        outputDir: File,
+        onImageCaptured: (Uri) -> Unit,
+        onError: (ImageCaptureException) -> Unit
+    ) {
+        val executor =  Executors.newSingleThreadExecutor()
+        val file = File(outputDir,"${Calendar.getInstance().timeInMillis.toString()}.jpg")
+        val outputOpts = ImageCapture.OutputFileOptions.Builder(file).build()
+        val callback = object : ImageCapture.OnImageSavedCallback{
+            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+               outputFileResults.savedUri?.let(onImageCaptured)
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                onError(exception)
+            }
+
+        }
+        imageCapture.takePicture(outputOpts,executor, callback)
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    CameraXandJetpackComposeTheme {
-        Greeting("Android")
-    }
-}
