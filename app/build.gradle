@@ -48,6 +48,15 @@ android {
 
 dependencies {
 
+    // CameraX core library using the camera2 implementation
+    def camerax_version = "1.2.2"
+    implementation "androidx.camera:camera-camera2:${camerax_version}"
+    implementation "androidx.camera:camera-lifecycle:${camerax_version}"
+    implementation "androidx.camera:camera-view:${camerax_version}"
+    implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation "androidx.concurrent:concurrent-futures-ktx:1.1.0"
+
+
     implementation 'androidx.core:core-ktx:1.8.0'
     implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.0')
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.3.1'
