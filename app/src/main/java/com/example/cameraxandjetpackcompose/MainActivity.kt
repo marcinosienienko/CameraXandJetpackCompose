@@ -2,6 +2,7 @@ package com.example.cameraxandjetpackcompose
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.core.CameraSelector
@@ -14,6 +15,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,18 +31,39 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.concurrent.futures.await
+import coil.compose.AsyncImage
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import java.io.File
 import java.util.Calendar
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            val preview = androidx.camera.core.Preview.Builder().build()
-            val imageCapture = ImageCapture.Builder()
-                .build()
 
+        val preview = androidx.camera.core.Preview.Builder().build()
+        val imageCapture = ImageCapture.Builder()
+            .build()
+        setContent {
+            val cameraPermissionState= rememberMultiplePermissionsState(
+                permissions = listOf(
+                    android.Manifest.permission.CAMERA,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            )
+
+            if(!cameraPermissionState.allPermissionsGranted) {
+                Column {
+                    Button(onClick = { cameraPermissionState.launchMultiplePermissionRequest() }) {
+                        Text(text = "Ask for permissions")
+                    }
+                }
+            }
+
+            if(cameraPermissionState.allPermissionsGranted)
+                CameraView(imageCapture = imageCapture, preview = preview)
 
         }
     }
@@ -89,10 +112,12 @@ class MainActivity : ComponentActivity() {
                     takePhoto(
                         imageCapture = imageCapture,
                         outputDir = outputDir,
-                    onImageCaptured = {
-
+                    onImageCaptured = {result ->
+                        uri = result
                     },
-                    onError = {}
+                    onError = {
+                        Log.d("TAG","Error camera!!!")
+                    }
                     )
                 }) {
                     Text(text = "Take photo")
@@ -103,6 +128,14 @@ class MainActivity : ComponentActivity() {
                     lensFacing = lens
                 }) {
                     Text(text = "Change lens facing")
+                }
+
+                if (uri != null) {
+                    AsyncImage(
+                        modifier = Modifier.wrapContentSize(),
+                        model = uri,
+                        contentDescription = null
+                    )
                 }
             }
         }
